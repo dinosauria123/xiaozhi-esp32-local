@@ -1,29 +1,31 @@
-#include "wifi_board.h"
-#include "codecs/es8311_audio_codec.h"
-#include "display/lcd_display.h"
-#include "application.h"
-#include "button.h"
-#include "config.h"
-#include "led/single_led.h"
-#include "assets/lang_config.h"
-#include <esp_log.h>
 #include <driver/i2c_master.h>
+#include <esp_log.h>
+#include "application.h"
+#include "assets/lang_config.h"
+#include "button.h"
+#include "codecs/es8311_audio_codec.h"
+#include "config.h"
+#include "display/lcd_display.h"
+#include "led/single_led.h"
 #include "system_reset.h"
+#include "wifi_board.h"
+
 
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 
+#include <driver/rtc_io.h>
+#include <driver/spi_common.h>
+#include <esp_io_expander_tca9554.h>
+#include <esp_lcd_panel_vendor.h>
+#include <esp_sleep.h>
+#include <esp_timer.h>
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
-#include <esp_lcd_panel_vendor.h>
-#include <esp_io_expander_tca9554.h>
-#include <driver/spi_common.h>
 #include "i2c_device.h"
-#include <esp_timer.h>
 #include "power_manager.h"
 #include "power_save_timer.h"
-#include <esp_sleep.h>
-#include <driver/rtc_io.h>
+
 
 #define TAG "Spotpear_esp32_s3_lcd_1_54"
 
@@ -40,9 +42,7 @@ public:
         read_buffer_ = new uint8_t[6];
     }
 
-    ~Cst816d() {
-        delete[] read_buffer_;
-    }
+    ~Cst816d() { delete[] read_buffer_; }
 
     void UpdateTouchPoint() {
         ReadRegs(0x02, read_buffer_, 6);
@@ -51,9 +51,7 @@ public:
         tp_.y = ((read_buffer_[3] & 0x0F) << 8) | read_buffer_[4];
     }
 
-    const TouchPoint_t& GetTouchPoint() {
-        return tp_;
-    }
+    const TouchPoint_t& GetTouchPoint() { return tp_; }
 
 private:
     uint8_t* read_buffer_ = nullptr;
@@ -101,9 +99,9 @@ private:
         power_save_timer_->OnShutdownRequest([this]() {
             ESP_LOGI(TAG, "Shutting down");
             rtc_gpio_set_level(GPIO_NUM_3, 0);
-            // 启用保持功能，确保睡眠期间电平不变
+            // Enable hold function to ensure level remains unchanged during sleep
             rtc_gpio_hold_en(GPIO_NUM_3);
-            esp_lcd_panel_disp_on_off(panel_, false); //关闭显示
+            esp_lcd_panel_disp_on_off(panel_, false);  // Turn off display
             esp_deep_sleep_start();
         });
         power_save_timer_->SetEnabled(true);
@@ -119,9 +117,10 @@ private:
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
             .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
+            .flags =
+                {
+                    .enable_internal_pullup = 1,
+                },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &codec_i2c_bus_));
     }
@@ -136,9 +135,10 @@ private:
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
             .trans_queue_depth = 0,
-            .flags = {
-                .enable_internal_pullup = 1,
-            },
+            .flags =
+                {
+                    .enable_internal_pullup = 1,
+                },
         };
         ESP_ERROR_CHECK(i2c_new_master_bus(&i2c_bus_cfg, &i2c_bus_));
     }
@@ -148,21 +148,22 @@ private:
         auto touchpad = board.GetTouchpad();
         static bool was_touched = false;
         static int64_t touch_start_time = 0;
-        const int64_t TOUCH_THRESHOLD_MS = 500;  // 触摸时长阈值，超过500ms视为长按
+        const int64_t TOUCH_THRESHOLD_MS =
+            500;  // Touch duration threshold, over 500ms is considered long press
 
         touchpad->UpdateTouchPoint();
         auto touch_point = touchpad->GetTouchPoint();
-        // 检测触摸开始
+        // Detect touch start
         if (touch_point.num > 0 && !was_touched) {
             was_touched = true;
-            touch_start_time = esp_timer_get_time() / 1000; // 转换为毫秒
+            touch_start_time = esp_timer_get_time() / 1000;  // Convert to milliseconds
         }
-        // 检测触摸释放
+        // Detect touch release
         else if (touch_point.num == 0 && was_touched) {
             was_touched = false;
             int64_t touch_duration = (esp_timer_get_time() / 1000) - touch_start_time;
 
-            // 只有短触才触发
+            // Only trigger on short touch
             if (touch_duration < TOUCH_THRESHOLD_MS) {
                 auto& app = Application::GetInstance();
                 if (app.GetDeviceState() == kDeviceStateStarting) {
@@ -178,7 +179,7 @@ private:
         ESP_LOGI(TAG, "Init Cst816D");
         cst816d_ = new Cst816d(i2c_bus_, 0x15);
 
-        // 创建定时器，10ms 间隔
+        // Create timer, 10ms interval
         esp_timer_create_args_t timer_args = {
             .callback = touchpad_timer_callback,
             .arg = NULL,
@@ -188,12 +189,12 @@ private:
         };
 
         ESP_ERROR_CHECK(esp_timer_create(&timer_args, &touchpad_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(touchpad_timer_, 10 * 1000)); // 10ms = 10000us
+        ESP_ERROR_CHECK(esp_timer_start_periodic(touchpad_timer_, 10 * 1000));  // 10ms = 10000us
     }
 
     void EnableLcdCs() {
-        if(io_expander_ != NULL) {
-            esp_io_expander_set_level(io_expander_, DISPLAY_SPI_CS_PIN, 0);// 置低 LCD CS
+        if (io_expander_ != NULL) {
+            esp_io_expander_set_level(io_expander_, DISPLAY_SPI_CS_PIN, 0);  // Set LCD CS low
         }
     }
 
@@ -211,7 +212,7 @@ private:
     void InitializeSt7789Display() {
         esp_lcd_panel_io_handle_t panel_io = nullptr;
         esp_lcd_panel_handle_t panel = nullptr;
-        // 液晶屏控制IO初始化
+        // LCD control IO initialization
         ESP_LOGD(TAG, "Install panel IO");
         esp_lcd_panel_io_spi_config_t io_config = {};
         io_config.cs_gpio_num = DISPLAY_SPI_CS_PIN;
@@ -223,7 +224,7 @@ private:
         io_config.lcd_param_bits = 8;
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
 
-        // 初始化液晶屏驱动芯片ST7789
+        // Initialize LCD driver chip ST7789
         ESP_LOGD(TAG, "Install LCD driver");
         esp_lcd_panel_dev_config_t panel_config = {};
         panel_config.reset_gpio_num = DISPLAY_SPI_RESET_PIN;
@@ -240,11 +241,12 @@ private:
         // uint8_t data_0xBB[] = { 0x3F };
         // esp_lcd_panel_io_tx_param(panel_io, 0xBB, data_0xBB, sizeof(data_0xBB));
 
-        uint8_t data_0xBB[] = { 0x38 };
+        uint8_t data_0xBB[] = {0x38};
         esp_lcd_panel_io_tx_param(panel_io, 0xBB, data_0xBB, sizeof(data_0xBB));
 
-        display_ = new SpiLcdDisplay(panel_io, panel,
-                                     DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
+        display_ = new SpiLcdDisplay(panel_io, panel, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                                     DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X,
+                                     DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY);
     }
 
     void InitializeButtons() {
@@ -259,8 +261,7 @@ private:
     }
 
 public:
-
-    Spotpear_esp32_s3_lcd_1_54() :boot_button_(BOOT_BUTTON_GPIO){
+    Spotpear_esp32_s3_lcd_1_54() : boot_button_(BOOT_BUTTON_GPIO) {
         gpio_set_direction(TP_PIN_NUM_TP_INT, GPIO_MODE_INPUT);
         int level = gpio_get_level(TP_PIN_NUM_TP_INT);
         if (level == 1) {
@@ -274,7 +275,6 @@ public:
         InitializeSt7789Display();
         InitializeButtons();
         GetBacklight()->RestoreBrightness();
-
     }
 
     virtual Led* GetLed() override {
@@ -282,14 +282,13 @@ public:
         return &led_strip;
     }
 
-    virtual Display* GetDisplay() override {
-        return display_;
-    }
+    virtual Display* GetDisplay() override { return display_; }
 
     virtual AudioCodec* GetAudioCodec() override {
-        static Es8311AudioCodec audio_codec(codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
-            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN,
-            AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
+        static Es8311AudioCodec audio_codec(
+            codec_i2c_bus_, I2C_NUM_0, AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_GPIO_MCLK, AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT,
+            AUDIO_I2S_GPIO_DIN, AUDIO_CODEC_PA_PIN, AUDIO_CODEC_ES8311_ADDR);
         return &audio_codec;
     }
 
@@ -298,9 +297,7 @@ public:
         return &backlight;
     }
 
-    Cst816d* GetTouchpad() {
-        return cst816d_;
-    }
+    Cst816d* GetTouchpad() { return cst816d_; }
 
     virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
         static bool last_discharging = false;

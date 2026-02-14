@@ -2,10 +2,11 @@
 #define PROTOCOL_H
 
 #include <cJSON.h>
-#include <string>
-#include <functional>
 #include <chrono>
+#include <functional>
+#include <string>
 #include <vector>
+
 
 struct AudioStreamPacket {
     int sample_rate = 0;
@@ -30,30 +31,21 @@ struct BinaryProtocol3 {
     uint8_t payload[];
 } __attribute__((packed));
 
-enum AbortReason {
-    kAbortReasonNone,
-    kAbortReasonWakeWordDetected
-};
+enum AbortReason { kAbortReasonNone, kAbortReasonWakeWordDetected };
 
 enum ListeningMode {
     kListeningModeAutoStop,
     kListeningModeManualStop,
-    kListeningModeRealtime // 需要 AEC 支持
+    kListeningModeRealtime  // Requires AEC support
 };
 
 class Protocol {
 public:
     virtual ~Protocol() = default;
 
-    inline int server_sample_rate() const {
-        return server_sample_rate_;
-    }
-    inline int server_frame_duration() const {
-        return server_frame_duration_;
-    }
-    inline const std::string& session_id() const {
-        return session_id_;
-    }
+    inline int server_sample_rate() const { return server_sample_rate_; }
+    inline int server_frame_duration() const { return server_frame_duration_; }
+    inline const std::string& session_id() const { return session_id_; }
 
     void OnIncomingAudio(std::function<void(std::unique_ptr<AudioStreamPacket> packet)> callback);
     void OnIncomingJson(std::function<void(const cJSON* root)> callback);
@@ -94,5 +86,4 @@ protected:
     virtual bool IsTimeout() const;
 };
 
-#endif // PROTOCOL_H
-
+#endif  // PROTOCOL_H

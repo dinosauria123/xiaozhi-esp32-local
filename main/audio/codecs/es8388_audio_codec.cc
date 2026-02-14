@@ -4,12 +4,13 @@
 
 #define TAG "Es8388AudioCodec"
 
-Es8388AudioCodec::Es8388AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port, int input_sample_rate, int output_sample_rate,
-    gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
-    gpio_num_t pa_pin, uint8_t es8388_addr, bool input_reference) {
-    duplex_ = true; // 是否双工
-    input_reference_ = input_reference; // 是否使用参考输入，实现回声消除
-    input_channels_ = input_reference_ ? 2 : 1; // 输入通道数
+Es8388AudioCodec::Es8388AudioCodec(void* i2c_master_handle, i2c_port_t i2c_port,
+                                   int input_sample_rate, int output_sample_rate, gpio_num_t mclk,
+                                   gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din,
+                                   gpio_num_t pa_pin, uint8_t es8388_addr, bool input_reference) {
+    duplex_ = true;                      // Whether duplex
+    input_reference_ = input_reference;  // Whether to use reference input for echo cancellation
+    input_channels_ = input_reference_ ? 2 : 1;  // Number of input channels
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
     input_gain_ = 24;
@@ -82,7 +83,8 @@ Es8388AudioCodec::~Es8388AudioCodec() {
     audio_codec_delete_data_if(data_if_);
 }
 
-void Es8388AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws, gpio_num_t dout, gpio_num_t din){
+void Es8388AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gpio_num_t ws,
+                                            gpio_num_t dout, gpio_num_t din) {
     assert(input_sample_rate_ == output_sample_rate_);
 
     i2s_chan_config_t chan_cfg = {
@@ -97,37 +99,26 @@ void Es8388AudioCodec::CreateDuplexChannels(gpio_num_t mclk, gpio_num_t bclk, gp
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle_, &rx_handle_));
 
     i2s_std_config_t std_cfg = {
-        .clk_cfg = {
-            .sample_rate_hz = (uint32_t)output_sample_rate_,
-            .clk_src = I2S_CLK_SRC_DEFAULT,
-            .ext_clk_freq_hz = 0,
-            .mclk_multiple = I2S_MCLK_MULTIPLE_256
-        },
-        .slot_cfg = {
-            .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
-            .slot_mode = I2S_SLOT_MODE_STEREO,
-            .slot_mask = I2S_STD_SLOT_BOTH,
-            .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
-            .ws_pol = false,
-            .bit_shift = true,
-            .left_align = true,
-            .big_endian = false,
-            .bit_order_lsb = false
-        },
-        .gpio_cfg = {
-            .mclk = mclk,
-            .bclk = bclk,
-            .ws = ws,
-            .dout = dout,
-            .din = din,
-            .invert_flags = {
-                .mclk_inv = false,
-                .bclk_inv = false,
-                .ws_inv = false
-            }
-        }
-    };
+        .clk_cfg = {.sample_rate_hz = (uint32_t)output_sample_rate_,
+                    .clk_src = I2S_CLK_SRC_DEFAULT,
+                    .ext_clk_freq_hz = 0,
+                    .mclk_multiple = I2S_MCLK_MULTIPLE_256},
+        .slot_cfg = {.data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+                     .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+                     .slot_mode = I2S_SLOT_MODE_STEREO,
+                     .slot_mask = I2S_STD_SLOT_BOTH,
+                     .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
+                     .ws_pol = false,
+                     .bit_shift = true,
+                     .left_align = true,
+                     .big_endian = false,
+                     .bit_order_lsb = false},
+        .gpio_cfg = {.mclk = mclk,
+                     .bclk = bclk,
+                     .ws = ws,
+                     .dout = dout,
+                     .din = din,
+                     .invert_flags = {.mclk_inv = false, .bclk_inv = false, .ws_inv = false}}};
 
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle_, &std_cfg));
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle_, &std_cfg));
@@ -149,7 +140,7 @@ void Es8388AudioCodec::EnableInput(bool enable) {
     if (enable) {
         esp_codec_dev_sample_info_t fs = {
             .bits_per_sample = 16,
-            .channel = (uint8_t) input_channels_,
+            .channel = (uint8_t)input_channels_,
             .channel_mask = ESP_CODEC_DEV_MAKE_CHANNEL_MASK(0),
             .sample_rate = (uint32_t)input_sample_rate_,
             .mclk_multiple = 0,
@@ -161,7 +152,7 @@ void Es8388AudioCodec::EnableInput(bool enable) {
         if (input_reference_) {
             uint8_t gain = (11 << 4) + 0;
             ctrl_if_->write_reg(ctrl_if_, 0x09, 1, &gain, 1);
-        }else{
+        } else {
             ESP_ERROR_CHECK(esp_codec_dev_set_in_gain(input_dev_, input_gain_));
         }
     } else {
@@ -187,8 +178,8 @@ void Es8388AudioCodec::EnableOutput(bool enable) {
         ESP_ERROR_CHECK(esp_codec_dev_set_out_vol(output_dev_, output_volume_));
 
         // Set analog output volume to 0dB, default is -45dB
-        uint8_t reg_val = 30; // 0dB
-        uint8_t regs[] = { 46, 47, 48, 49 }; // HP_LVOL, HP_RVOL, SPK_LVOL, SPK_RVOL
+        uint8_t reg_val = 30;               // 0dB
+        uint8_t regs[] = {46, 47, 48, 49};  // HP_LVOL, HP_RVOL, SPK_LVOL, SPK_RVOL
         for (uint8_t reg : regs) {
             ctrl_if_->write_reg(ctrl_if_, reg, 1, &reg_val, 1);
         }
@@ -207,14 +198,16 @@ void Es8388AudioCodec::EnableOutput(bool enable) {
 
 int Es8388AudioCodec::Read(int16_t* dest, int samples) {
     if (input_enabled_) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(
+            esp_codec_dev_read(input_dev_, (void*)dest, samples * sizeof(int16_t)));
     }
     return samples;
 }
 
 int Es8388AudioCodec::Write(const int16_t* data, int samples) {
     if (output_enabled_ && output_dev_ && data != nullptr) {
-        ESP_ERROR_CHECK_WITHOUT_ABORT(esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
+        ESP_ERROR_CHECK_WITHOUT_ABORT(
+            esp_codec_dev_write(output_dev_, (void*)data, samples * sizeof(int16_t)));
     }
     return samples;
 }

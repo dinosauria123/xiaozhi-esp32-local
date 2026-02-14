@@ -1,3 +1,12 @@
+# このリポジトリについて
+
+xiaozhi-esp32をforkしてローカルLLMで使うように改造したものです。
+
+https://github.com/dinosauria123/Xiaozhi-ESP32-Bridge-Server　を仲介サーバーとして、LMStudioで起動したローカルLLMに接続します。
+中国の小智サーバーにつながるのを回避できます。
+
+ファームウエアを書き込んだ後、小智ESP32のWEBUIの詳細設定画面で仲介サーバーのURLを指定します（ws://192.168.0.6:8000　のように設定してください）
+
 # An MCP-based Chatbot
 
 (English | [中文](README_zh.md) | [日本語](README_ja.md))
